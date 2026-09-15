@@ -1,0 +1,25 @@
+{
+  "name": "proyecto-eventos",
+  "version": "1.0.0",
+  "description": "Plataforma de Gestión e Inscripción de Eventos Deportivos - API REST con arquitectura en capas",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": [
+    "express",
+    "sports-events",
+    "eventos-deportivos",
+    "api",
+    "rest",
+    "architecture"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
