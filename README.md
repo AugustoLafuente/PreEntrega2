@@ -82,8 +82,6 @@ El proyecto utiliza variables de entorno para manejar la configuración de puert
 | `MONGO_URL` | URI de conexión a la base de datos MongoDB (local o Atlas) | `mongodb://localhost:27017/nombre_de_tu_db` |
 | `JWT_SECRET` | Clave secreta para la firma y verificación de tokens JWT | `cadena_secreta_personalizada` |
 
-> ⚠️ **Importante:** Asegúrate de que el archivo `.env` permanezca siempre ignorado por Git (verificado en `.gitignore`) para evitar la filtración accidental de credenciales.
-
 ---
 
 ## 🚀 Instalación y Ejecución
