@@ -15,6 +15,8 @@ Esta primera entrega sienta las bases con un diseño limpio, desacoplado y prepa
 ## 🛠️ Tecnologías Utilizadas
 - **Node.js**: Entorno de ejecución para JavaScript del lado del servidor.
 - **Express.js**: Framework minimalista para crear APIs REST.
+- **MongoDB / Mongoose**: Base de datos y ODM para la persistencia de datos.
+- **bcrypt**: Hasheo seguro de contraseñas.
 - **ES Modules (ESM)**: Sistema nativo de módulos con sintaxis `import` / `export`.
 - **Dotenv**: Gestión de variables de entorno seguras.
 
@@ -36,13 +38,17 @@ proyecto-eventos/
 │   │   ├── events.controller.js
 │   │   └── sessions.controller.js
 │   ├── services/             # Lógica de negocio de la aplicación
+│   │   └── sessions.service.js
 │   ├── repositories/         # Capa intermedia de acceso a datos y mapeo
-│   ├── dao/                  # Data Access Object (persistencia en DB o memoria)
-│   ├── models/               # Modelos y esquemas de entidades del dominio deportivo
-│   │   ├── User.js           # Usuario (Atleta / Organizador / Admin)
+│   │   └── users.repository.js
+│   ├── dao/                  # Data Access Object (acceso directo a Mongoose)
+│   │   └── users.dao.js
+│   ├── models/               # Modelos y esquemas (Mongoose) de entidades del dominio
+│   │   ├── User.js           # Usuario (first_name, last_name, email, password, role)
 │   │   └── Event.js          # Evento deportivo (disciplina, cupos, categoría, etc.)
 │   ├── middlewares/          # Middlewares de validación, autenticación y manejo de errores
 │   └── utils/                # Utilidades, funciones auxiliares y helpers
+│       └── hash.js           # Helper de bcrypt (hash y comparación de contraseñas)
 ├── .env                      # Variables de entorno locales (ignorado en Git)
 ├── .env.example              # Plantilla de variables de entorno requeridas
 ├── .gitignore                # Reglas para excluir archivos sensibles y dependencias
@@ -54,22 +60,29 @@ proyecto-eventos/
 
 ## ⚙️ Configuración de Variables de Entorno
 
-Copia el archivo `.env.example` y renómbralo a `.env`:
+El proyecto utiliza variables de entorno para manejar la configuración de puertos, conexiones y secretos de forma segura:
 
-```bash
-cp .env.example .env
-```
+- **`.env.example`**: Archivo público que sirve como **plantilla** documentando qué variables requiere la aplicación. Contiene únicamente valores ficticios o genéricos y **nunca** debe contener contraseñas, URLs privadas con credenciales ni claves reales.
+- **`.env`**: Archivo local privado donde se definen los valores y credenciales reales para tu entorno de desarrollo o producción. Este archivo está incluido en `.gitignore` y **nunca** debe subirse al repositorio.
 
-Configura las siguientes variables según tu entorno:
+### Paso a paso para configurar tu entorno local:
 
-| Variable | Descripción | Valor por defecto |
+1. **Crear el archivo `.env` a partir de la plantilla:**
+   ```bash
+   cp .env.example .env
+   ```
+   *(En Windows PowerShell: `Copy-Item .env.example .env` o crear el archivo manualmente).*
+
+2. **Completar las variables en tu `.env` local:**
+
+| Variable | Descripción | Ejemplo / Formato |
 | :--- | :--- | :--- |
-| `PORT` | Puerto donde correrá el servidor | `8080` |
+| `PORT` | Puerto donde correrá el servidor HTTP | `8080` |
 | `NODE_ENV` | Entorno de ejecución (`development` / `production`) | `development` |
-| `MONGO_URL` | URI de conexión a la base de datos MongoDB | `mongodb://localhost:27017/eventos_deportivos_db` |
-| `JWT_SECRET` | Clave secreta para la firma de tokens JWT | `supersecretjwtkey123` |
+| `MONGO_URL` | URI de conexión a la base de datos MongoDB (local o Atlas) | `mongodb://localhost:27017/nombre_de_tu_db` |
+| `JWT_SECRET` | Clave secreta para la firma y verificación de tokens JWT | `cadena_secreta_personalizada` |
 
-> ⚠️ **Nota:** El archivo `.env` nunca debe ser subido al repositorio de control de versiones.
+> ⚠️ **Importante:** Asegúrate de que el archivo `.env` permanezca siempre ignorado por Git (verificado en `.gitignore`) para evitar la filtración accidental de credenciales.
 
 ---
 
@@ -120,8 +133,60 @@ npm install
     }
     ```
 
-### 🔐 Sesiones (Estructura inicial)
+### 🔐 Sesiones
+
 - **`POST /api/sessions/register`**
-  - **Descripción**: Endpoint preparado para registro de atletas y organizadores.
+  - **Descripción**: Registra un nuevo usuario en la plataforma. Valida los datos recibidos, normaliza el email, rechaza emails duplicados y hashea la contraseña con bcrypt antes de guardarla en MongoDB. El rol **no** puede ser definido desde el body: siempre se crea con el valor por defecto `user`.
+  - **Body esperado**:
+    | Campo | Tipo | Obligatorio | Reglas |
+    | :--- | :--- | :--- | :--- |
+    | `first_name` | string | Sí | No vacío |
+    | `last_name` | string | Sí | No vacío |
+    | `email` | string | Sí | Formato de email válido. Se normaliza con `trim` + `lowercase` |
+    | `password` | string | Sí | Mínimo 8 caracteres |
+
+  - **Request de ejemplo**:
+    ```json
+    {
+      "first_name": "Ana",
+      "last_name": "Pérez",
+      "email": "Ana@Mail.com ",
+      "password": "Secreta123"
+    }
+    ```
+
+  - **Respuesta `201 Created`** (email normalizado, sin `password`):
+    ```json
+    {
+      "status": "success",
+      "payload": {
+        "id": "665f2a...",
+        "first_name": "Ana",
+        "last_name": "Pérez",
+        "email": "ana@mail.com",
+        "role": "user"
+      }
+    }
+    ```
+
+  - **Respuesta `400 Bad Request`** (campos faltantes, email inválido o password muy corta):
+    ```json
+    { "status": "error", "message": "Faltan campos obligatorios" }
+    ```
+
+  - **Respuesta `409 Conflict`** (email ya registrado):
+    ```json
+    { "status": "error", "message": "El email ya está registrado" }
+    ```
+
+  - **Cómo probarlo con curl**:
+    ```bash
+    curl -X POST http://localhost:8080/api/sessions/register \
+      -H "Content-Type: application/json" \
+      -d '{"first_name":"Ana","last_name":"Pérez","email":"Ana@Mail.com","password":"Secreta123"}'
+    ```
+
+  - **Verificación de seguridad**: al consultar la colección `users` en MongoDB, el campo `password` debe verse como un hash de bcrypt (por ejemplo `$2b$10$...`), nunca en texto plano. La respuesta del endpoint nunca incluye el campo `password`.
+
 - **`POST /api/sessions/login`**
-  - **Descripción**: Endpoint preparado para inicio de sesión y emisión de credenciales.
+  - **Descripción**: Endpoint preparado para inicio de sesión y emisión de credenciales (a implementar en una próxima entrega).
